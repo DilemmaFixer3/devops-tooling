@@ -1,0 +1,9 @@
+# Visual Studio 
+.vs/
+*.vsidx
+
+# Visual Studio Code Cache
+.vscode/
+
+# Project specific cache files
+# Додайте інші службові файли/папки, якщо вони є (наприклад, .DS_Store, *.log)
