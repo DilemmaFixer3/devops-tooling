@@ -5,39 +5,34 @@
 # ==============================================================================
 
 NAME_PATTERN="[a-z][a-z0-9_-]*[a-z0-9]"
-EXTENSIONS='py|txt|js|java|c|md' # Додамо md, бо в проєкті є такі файли
-FILE_PATTERN="$NAME_PATTERN\.($EXTENSIONS)"
-ERRORS=0
+EXTENSIONS='py|txt|js|java|c|md'
+ERRORS_FILE="errors.tmp" # Файл для тимчасового зберігання помилок
 
 # ==============================================================================
-# Usage and Validation
+# Setup
 # ==============================================================================
+rm -f $ERRORS_FILE # Очистити старий файл помилок
 
 if [ -z "$1" ]; then
     echo "[СИСТЕМА] Помилка: Необхідно вказати шлях до директорії."
     exit 1
 fi
-
 TARGET_DIR="$1"
-
-if [ ! -d "$TARGET_DIR" ]; then
-    echo "[СИСТЕМА] Помилка: Вказаний шлях '$TARGET_DIR' не є дійсною директорією."
-    exit 1
-fi
 
 # ==============================================================================
 # Directory Validation Logic
 # ==============================================================================
 
-# Знаходимо всі директорії, крім службових (.git, .)
-find "$TARGET_DIR" -type d \( -path "$TARGET_DIR/.git" -o -path "$TARGET_DIR/." -o -path "$TARGET_DIR/.." \) -prune -o -print | while IFS= read -r DIR_PATH; do
+# Використовуємо '-exec' для коректної обробки
+find "$TARGET_DIR" -type d \( -path "$TARGET_DIR/.git" \) -prune -o -print | while IFS= read -r DIR_PATH; do
     DIR_NAME=$(basename "$DIR_PATH")
     
-    # Перевіряємо, що назва директорії (DIR_NAME) відповідає патерну NAME_PATTERN
+    # Ігноруємо порожні назви або .
+    if [[ -z "$DIR_NAME" || "$DIR_NAME" == "." ]]; then continue; fi
+
+    # Перевірка
     if [[ ! "$DIR_NAME" =~ ^$NAME_PATTERN$ ]]; then
-        # Виводимо тільки повідомлення про помилку
-        echo "[ПОМИЛКА] Директорія не відповідає конвенції: $DIR_PATH"
-        ERRORS=$((ERRORS + 1))
+        echo "[ПОМИЛКА] Директорія не відповідає конвенції: $DIR_PATH" >> $ERRORS_FILE
     fi
 done
 
@@ -45,17 +40,28 @@ done
 # File Validation Logic
 # ==============================================================================
 
+# Тут ми можемо залишити ваш цикл 'while'
 FIND_REGEX=".*\.\($EXTENSIONS\)"
 find "$TARGET_DIR" -type f -regex "$FIND_REGEX" | while IFS= read -r FILE_PATH; do
     FILENAME=$(basename "$FILE_PATH")
-
-    # Перевіряємо, що назва файлу (без шляху) відповідає патерну FILE_PATTERN
-    if [[ ! "$FILENAME" =~ ^$FILE_PATTERN$ ]]; then
-        # Виводимо тільки повідомлення про помилку
-        echo "[ПОМИЛКА] Файл не відповідає конвенції: $FILE_PATH"
-        ERRORS=$((ERRORS + 1))
+    
+    # Перевірка, що назва файлу (без шляху) відповідає патерну
+    if [[ ! "$FILENAME" =~ ^$NAME_PATTERN\.$EXTENSIONS$ ]]; then
+        echo "[ПОМИЛКА] Файл не відповідає конвенції: $FILE_PATH" >> $ERRORS_FILE
     fi
 done
 
-# Виводимо фінальний звіт (Exit Code буде оброблятися в main.yml)
-echo "--- ПЕРЕВІРКА ЗАВЕРШЕНА: Знайдено $ERRORS порушень ---"
+# ==============================================================================
+# Exit Code (Фінальна перевірка)
+# ==============================================================================
+
+if [ -s "$ERRORS_FILE" ]; then
+    echo "--- ЗНАЙДЕНО ПОРУШЕННЯ ІМЕНУВАННЯ ---"
+    cat $ERRORS_FILE
+    rm -f $ERRORS_FILE
+    exit 1 # ГАРАНТОВАНО ВИКЛИКАЄ FAILURE
+else
+    echo "SUCCESS: Всі файли та директорії пройшли перевірку."
+    rm -f $ERRORS_FILE
+    exit 0
+fi
