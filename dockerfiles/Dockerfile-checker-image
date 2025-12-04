@@ -1,0 +1,27 @@
+# Dockerfiles/Dockerfile-checker-image
+# 
+# Використання базового образу Alpine версії 3.20 
+FROM alpine:3.20 
+
+# Визначення змінних для версій компонентів згідно з завданням
+ENV BASH_VERSION=5.2.26-r0 \
+    GIT_VERSION=2.45.4-r0 \
+    PYTHON_VERSION=3.12.3-r1
+
+# Встановлення необхідних компонентів. 
+# apk --no-cache add - для швидшого встановлення без збереження кешу пакетів.
+RUN apk --no-cache add \
+    bash="${BASH_VERSION}" \
+    git="${GIT_VERSION}" \
+    python3="${PYTHON_VERSION}"
+
+# Додавання інформаційного принта для зручності читання лог-у GitLab CI 
+# Цей крок перевіряє, чи коректно встановлені основні компоненти.
+RUN echo "--- Installed Packages Check ---" && \
+    bash --version | head -n 1 && \
+    git --version && \
+    python3 --version && \
+    echo "--- Setup Complete ---"
+
+# Встановлення робочої директорії
+WORKDIR /app
