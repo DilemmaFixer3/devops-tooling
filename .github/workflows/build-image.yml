@@ -65,9 +65,10 @@ jobs:
     - name: 'Build Docker Image'
       run: |
         DOCKERFILE_PATH="${{ github.event.inputs.dockerfile_path }}"
+        TAG="${{ steps.set_tag.outputs.full_tag }}"
         echo "Building Docker image from $DOCKERFILE_PATH..."
-        docker build -f $DOCKERFILE_PATH . \
-            -t ${{ steps.set_tag.outputs.full_tag }}
+        docker build -f "$DOCKERFILE_PATH" -t "$TAG" .
+        
         echo "Build successful."
 
     # [cite_start]4. Відправка Docker-образу на віддалений репозиторій [cite: 58]
