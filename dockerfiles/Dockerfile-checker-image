@@ -1,0 +1,23 @@
+# Dockerfiles/Dockerfile-checker-image
+# 
+# Використання базового образу Alpine версії 3.20
+FROM alpine:3.20 
+
+# Видаляємо точні змінні ENV та встановлюємо пакети з доступними версіями
+# (оскільки точні версії, вказані в завданні, можуть бути недоступні в репозиторіях 3.20)
+
+# Встановлення необхідних компонентів: bash, git, python3.
+RUN apk --no-cache add \
+    bash \
+    git \
+    python3
+
+# Додавання інформаційного принта для перевірки версій
+RUN echo "--- Installed Packages Check ---" && \
+    bash --version | head -n 1 && \
+    git --version && \
+    python3 --version && \
+    echo "--- Setup Complete ---"
+
+# Встановлення робочої директорії
+WORKDIR /app

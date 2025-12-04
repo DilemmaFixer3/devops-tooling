@@ -1,0 +1,98 @@
+# .github/workflows/build-image.yml
+
+name: Docker Image Build and Push to Artifact Registry
+
+on:
+  # 1. Дозволити ручний запуск (з Inputs)
+  workflow_dispatch:
+    inputs:
+      docker_image_name:
+        description: 'DOCKER_IMAGE_NAME'
+        required: true
+        default: 'ci-checker-image-myroslavababiichuk'
+      docker_image_version:
+        description: 'DOCKER_IMAGE_VERSION'
+        required: true
+        default: '0.1.0'
+      dockerfile_path:
+        description: 'DOCKERFILE_PATH'
+        required: true
+        default: 'dockerfiles/Dockerfile-checker-image'
+        
+  # 2. Умова для автоматичного запуску при Pull Request (для перевірки Checks)
+  pull_request:
+    branches:
+      - main
+      - develop
+      
+jobs:
+  build-and-push-to-gcr:
+    runs-on: ubuntu-latest
+    
+    # Визначаємо змінні оточення для безпечного використання, 
+    # використовуючи '||' для забезпечення fallback (за замовчуванням) значень.
+    env:
+      REGISTRY_SERVER: ${{ secrets.GCR_LOGIN_SERVER }}
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      REPOSITORY_NAME: myroslavababiichuk09
+      
+      # Забезпечуємо, що ці змінні завжди мають значення (навіть якщо input порожній)
+      SAFE_IMAGE_NAME: ${{ github.event.inputs.docker_image_name || 'ci-checker-image-myroslavababiichuk' }}
+      SAFE_IMAGE_VERSION: ${{ github.event.inputs.docker_image_version || '0.1.0' }}
+      SAFE_DOCKERFILE_PATH: ${{ github.event.inputs.dockerfile_path || 'dockerfiles/Dockerfile-checker-image' }}
+      
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    # 1. Логін у віддалений Docker-репозиторій
+    - name: 'GCP Auth (docker login)'
+      uses: 'google-github-actions/auth@v2'
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        
+    - name: 'Configure Docker to use Artifact Registry'
+      run: |
+        echo "Logging in to Google Artifact Registry: $REGISTRY_SERVER..."
+        gcloud auth configure-docker $REGISTRY_SERVER --quiet
+        echo "Login successful."
+        
+    # Формування повного тегу образу
+    - name: Set Image Full Tag
+      id: set_tag
+      run: |
+        FULL_TAG="$REGISTRY_SERVER/$PROJECT_ID/$REPOSITORY_NAME/$SAFE_IMAGE_NAME:$SAFE_IMAGE_VERSION"
+        echo "full_tag=$FULL_TAG" >> $GITHUB_OUTPUT
+        echo "::notice::Full Image Tag: $FULL_TAG"
+        
+    # 2. Очищення наявного образу
+    - name: 'Cleanup existing image (Pre-build)'
+      run: |
+        echo "Running pre-build environment cleanup."
+        docker rmi -f ${{ steps.set_tag.outputs.full_tag }} || true 
+        echo "Pre-build environment cleanup complete."
+        
+    # 3. Збірка Docker-образу (Використовуємо SAFE_DOCKERFILE_PATH)
+    - name: 'Build Docker Image'
+      run: |
+        TAG="${{ steps.set_tag.outputs.full_tag }}"
+        echo "Building Docker image from $SAFE_DOCKERFILE_PATH..."
+        
+        # ВИПРАВЛЕНА КОМАНДА: Передаємо коректний шлях до файлу і контекст збірки (точка .)
+        docker build -f "$SAFE_DOCKERFILE_PATH" -t "$TAG" .
+        
+        echo "Build successful."
+        
+    # 4. Відправка Docker-образу на віддалений репозиторій
+    - name: 'Push Docker Image'
+      run: |
+        echo "Pushing Docker image ${{ steps.set_tag.outputs.full_tag }} to Artifact Registry..."
+        docker push ${{ steps.set_tag.outputs.full_tag }}
+        echo "Successfully pushed ${{ steps.set_tag.outputs.full_tag }}"
+        
+    # 5. Видалення створеного образу зі середовища збірки
+    - name: 'Cleanup existing image (Post-build)'
+      run: |
+        echo "Running post-build environment cleanup."
+        docker rmi ${{ steps.set_tag.outputs.full_tag }}
+        echo "The build environment is cleaned up successfully."
