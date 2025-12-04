@@ -17,6 +17,11 @@ on:
         description: 'DOCKERFILE_PATH (e.g., dockerfiles/Dockerfile-checker-image)'
         required: true
         default: 'dockerfiles/Dockerfile-checker-image'
+
+  pull_request:
+    branches:
+      - main # або develop, залежно від того, куди ви зливаєтеся
+      - feature/LAB-5_*     
 jobs:
   build-and-push-to-gcr:
     runs-on: ubuntu-latest
